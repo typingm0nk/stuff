@@ -1,0 +1,235 @@
+heat_template_version: 2013-05-23
+
+description: My First Heat Template
+
+parameter_groups:
+- label: IP Settings
+  description: Groups all the IPv4 settings
+  parameters: 
+  - cidr_net
+  - ip_start
+  - ip_end
+  - gateway_address
+  - dns_server1
+  - dns_server2
+- label: Open Stack Settings
+  description: All settings about OpenStack
+  parameters:
+  - keypair_name
+  - image_id
+  - external_net_id
+  - machine_flavor
+
+parameters:
+ cidr_net:
+  type: string
+  default: 192.168.0.0/24
+  description: Size of the ip-net
+ dns_server1:
+  type: string
+  default: 141.20.1.3
+  description: DNS 1 for this stack
+ dns_server2:
+  type: string
+  default: 141.20.1.31
+  description: DNS 2 for this stack
+ ip_start:
+  type: string
+  default: 192.168.0.100
+  description: DHCP start address for this stack
+ ip_end:
+  type: string
+  default: 192.168.0.200
+  description: DHCP end address for this stack
+ gateway_address:
+  type: string
+  default: 192.168.0.1
+  description: IP address of the gateway
+ keypair_name:
+  type: string
+  default: MyNewKeys
+  description: Which keypair should be used
+ image_id:
+  type: string
+  default: YOUR_IMAGE_ID_HERE
+  description: Put your favorite image ID here
+ external_net_id:
+  type: string
+  default: YOUR_EXT_NET_ID_HERE
+  description: Ask your administrator for the external_network_id
+ machine_flavor:
+  type: string
+  default: m1.small
+  description: Your machine flavor to be used for this server.
+  constraints:
+   - allowed_values: [m1.nano, m1.tiny, m1.small, m1.large]
+     description: Value must be one of 'm1.tiny', 'm1.small' or 'm1.large'
+
+resources:
+ my_first_network:
+  type: OS::Neutron::Net
+  properties:
+   name: My1Net
+
+ my_first_subnet:
+  type: OS::Neutron::Subnet
+  properties:
+   allocation_pools: [ { start: { get_param: ip_start }, end: { get_param: ip_end } } ]
+   cidr: { get_param: cidr_net }
+   dns_nameservers: [ { get_param: dns_server1 }, { get_param: dns_server2 } ]
+   enable_dhcp: true
+   gateway_ip: { get_param: gateway_address }
+   network_id: { get_resource: my_first_network }
+   name: My1Subnet
+
+ my_basic_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow ICMP, SSH
+   name: BasicRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: tcp,
+    port_range_min: 22,
+    port_range_max: 22},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: icmp},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: egress,
+    protocol: icmp}]
+
+ my_http_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow HTTP
+   name: HTTPRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: tcp,
+    port_range_min: 80,
+    port_range_max: 80}]
+
+ my_router_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow All
+   name: RouterRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: egress}]
+
+ my_port1:
+  type: OS::Neutron::Port
+  properties:
+   admin_state_up: true
+   name: Port01
+   network_id: { get_resource: my_first_network }
+   security_groups: [ {get_resource: my_basic_security_group }, { get_resource: my_http_security_group } ]
+
+ my_port2:
+  type: OS::Neutron::Port
+  properties:
+   admin_state_up: true
+   name: Port02
+   network_id: { get_resource: my_first_network }
+   security_groups: [ { get_resource: my_basic_security_group } ]
+
+ my_port3:
+  type: OS::Neutron::Port
+  properties:
+   admin_state_up: true
+   name: Port03
+   network_id: { get_resource: my_first_network }
+   security_groups: [ { get_resource: my_basic_security_group } ]
+
+ my_port4:
+  type: OS::Neutron::Port
+  properties:
+   admin_state_up: true
+   name: Port04
+   network_id: { get_resource: my_first_network }
+   fixed_ips: [{ "subnet_id": { get_resource: my_first_subnet }, "ip_address": { get_param: gateway_address } }]
+   security_groups: [ { get_resource: my_router_security_group } ]
+
+ my_router:
+  type: OS::Neutron::Router
+  properties:
+   admin_state_up: true
+   name: MyRouter
+
+ my_router_gateway:
+  type: OS::Neutron::RouterGateway
+  properties:
+   network_id: { get_param: external_net_id }
+   router_id: { get_resource: my_router }
+
+ my_router_int:
+  type: OS::Neutron::RouterInterface
+  properties:
+   router_id: { get_resource: my_router }
+   port_id: { get_resource: my_port4 }
+ 
+ my_server1:
+  type: OS::Nova::Server
+  properties:
+   name: WebServer1
+   key_name: { get_param: keypair_name }
+   flavor: { get_param: machine_flavor }
+   image: { get_param: image_id }
+   networks: [{ "port": { get_resource: my_port1 }, "network": { get_resource: my_first_network }}]
+   user_data: |
+    #!/bin/bash
+    ping -c 4 141.20.9.17
+
+ my_server2:
+  type: OS::Nova::Server
+  properties:
+   name: DBServer1
+   key_name: { get_param: keypair_name }
+   flavor: { get_param: machine_flavor }
+   image: { get_param: image_id }
+   networks: [{ "port": { get_resource: my_port2 }, "network": { get_resource: my_first_network }}]
+
+ my_server3:
+  type: OS::Nova::Server
+  properties:
+   name: DBServer2
+   key_name: { get_param: keypair_name }
+   flavor: { get_param: machine_flavor }
+   image: { get_param: image_id }
+   networks: [{ "port": { get_resource: my_port3 }, "network": { get_resource: my_first_network }}]
+
+ my_floatingip:
+  type: OS::Neutron::FloatingIP
+  properties:
+   floating_network_id: { get_param: external_net_id }
+   port_id: { get_resource: my_port1 }
+
+outputs:
+ ServerIP:
+  value:
+   str_replace:
+    template: Öffentliche IP ist hostip
+    params:
+     hostip: { get_attr: [my_floatingip, floating_ip_address] } 
+ FloatingIP:
+  value: { get_attr: [my_floatingip, show ] }
+ Network:
+  value: { get_attr: [my_first_network, show] }
+ Subnet:
+  value: { get_attr: [my_first_subnet, show] }
+ Server1:
+   value: { get_attr: [ my_server1, show ] }
+ Server2:
+   value: { get_attr: [ my_server2, show ] }
+ Server3:
+   value: { get_attr: [ my_server3, show ] }
+ Port1:
+   value: { get_attr: [ my_port1, show ] }
+ Port4:
+   value: { get_attr: [ my_port4, show ] }

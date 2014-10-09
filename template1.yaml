@@ -1,0 +1,125 @@
+heat_template_version: 2013-05-23
+
+description: Template for a lot of identical Servers.
+
+parameter_groups:
+- label: IP Settings
+  description: Groups all the IPv4 settings
+  parameters: 
+  - cidr_net
+  - ip_start
+  - ip_end
+  - gateway_address
+  - dns_server1
+  - dns_server2
+- label: Open Stack Settings
+  description: All settings about OpenStack
+  parameters:
+  - keypair_name
+  - image_id
+  - external_net_id
+  - machine_flavor
+
+parameters:
+ cidr_net:
+  type: string
+  default: 192.168.0.0/24
+  description: Size of the ip-net
+ dns_server1:
+  type: string
+  default: 141.20.1.3
+  description: DNS 1 for this stack
+ dns_server2:
+  type: string
+  default: 141.20.1.31
+  description: DNS 2 for this stack
+ ip_start:
+  type: string
+  default: 192.168.0.100
+  description: DHCP start address for this stack
+ ip_end:
+  type: string
+  default: 192.168.0.200
+  description: DHCP end address for this stack
+ gateway_address:
+  type: string
+  default: 192.168.0.1
+  description: IP address of the gateway
+ keypair_name:
+  type: string
+  default: schmimalkey
+  description: Which keypair should be used
+ image_id:
+  type: string
+  default: 6f6e8298-d263-4cad-8d88-63f281a35088
+  description: Put your favorite image ID here
+ external_net_id:
+  type: string
+  default: 377d4acf-93d4-40e8-bba8-5f6becc026d8
+  description: Ask your administrator for the external_network_id
+ machine_flavor:
+  type: string
+  default: m1.small
+  description: Your machine flavor to be used for this server.
+  constraints:
+   - allowed_values: [m1.nano, m1.tiny, m1.small, m1.large]
+     description: Value must be one of 'm1.tiny', 'm1.small' or 'm1.large'
+
+resources:
+ my_first_network:
+  type: OS::Neutron::Net
+  properties:
+   name: My1Net
+
+ my_first_subnet:
+  type: OS::Neutron::Subnet
+  properties:
+   allocation_pools: [ { start: { get_param: ip_start }, end: { get_param: ip_end } } ]
+   cidr: { get_param: cidr_net }
+   dns_nameservers: [ { get_param: dns_server1 }, { get_param: dns_server2 } ]
+   enable_dhcp: true
+   gateway_ip: { get_param: gateway_address }
+   network_id: { get_resource: my_first_network }
+   name: My1Subnet
+
+ my_basic_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow ICMP, SSH
+   name: BasicRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: tcp,
+    port_range_min: 22,
+    port_range_max: 22},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: icmp},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: egress,
+    protocol: icmp}]
+
+ my_http_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow HTTP
+   name: HTTPRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress,
+    protocol: tcp,
+    port_range_min: 80,
+    port_range_max: 80}]
+
+ my_router_security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   description: Allow All
+   name: RouterRules
+   rules: [
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: ingress},
+    {remote_ip_prefix: 0.0.0.0/0,
+    direction: egress}]
+

@@ -1,0 +1,20 @@
+ my_floatingip:
+  type: OS::Neutron::FloatingIP
+  properties:
+   floating_network_id: { get_param: external_net_id }
+   port_id: { get_resource: my_port1 }
+
+outputs:
+ ServerIP:
+  value:
+   str_replace:
+    template: Öffentliche IP ist hostip
+    params:
+     hostip: { get_attr: [my_floatingip, floating_ip_address] } 
+ FloatingIP:
+  value: { get_attr: [my_floatingip, show ] }
+ Network:
+  value: { get_attr: [my_first_network, show] }
+ Subnet:
+  value: { get_attr: [my_first_subnet, show] }
+

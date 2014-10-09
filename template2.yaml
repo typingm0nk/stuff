@@ -1,0 +1,27 @@
+ my_port4:
+  type: OS::Neutron::Port
+  properties:
+   admin_state_up: true
+   name: Port04
+   network_id: { get_resource: my_first_network }
+   fixed_ips: [{ "subnet_id": { get_resource: my_first_subnet }, "ip_address": { get_param: gateway_address } }]
+   security_groups: [ { get_resource: my_router_security_group } ]
+
+ my_router:
+  type: OS::Neutron::Router
+  properties:
+   admin_state_up: true
+   name: MyRouter
+
+ my_router_gateway:
+  type: OS::Neutron::RouterGateway
+  properties:
+   network_id: { get_param: external_net_id }
+   router_id: { get_resource: my_router }
+
+ my_router_int:
+  type: OS::Neutron::RouterInterface
+  properties:
+   router_id: { get_resource: my_router }
+   port_id: { get_resource: my_port4 }
+
